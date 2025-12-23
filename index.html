@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>root@anarkh:~</title>
+    <style>
+        :root {
+            --bg-color: #0d0d0d;
+            --text-color: #33ff00;
+            --prompt-color: #ff0055;
+            --font-stack: 'Courier New', Courier, monospace;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: var(--font-stack);
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* 防止双滚动条 */
+            height: 100vh;
+            font-size: 16px;
+        }
+
+        /* 隐藏真实的 Input，但保持聚焦 */
+        #cmd-input {
+            position: absolute;
+            opacity: 0;
+            top: 0;
+            left: 0;
+            height: 0;
+            width: 0;
+        }
+
+        /* 终端容器 */
+        #terminal {
+            padding: 20px;
+            height: 100%;
+            box-sizing: border-box;
+            overflow-y: auto; /* 允许垂直滚动 */
+            position: relative;
+            z-index: 1;
+        }
+
+        /* CRT 扫描线效果 */
+        body::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 2;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+        }
+
+        .line { margin-bottom: 5px; white-space: pre-wrap; word-break: break-all; }
+        .prompt { color: var(--prompt-color); font-weight: bold; margin-right: 8px; }
+        .command { color: #fff; font-weight: bold; }
+        .output { color: var(--text-color); opacity: 0.9; }
+        
+        /* 链接样式 */
+        a { color: #fff; text-decoration: none; border-bottom: 1px dashed #33ff00; }
+        a:hover { background-color: #33ff00; color: #000; }
+
+        /* 光标闪烁 */
+        .cursor {
+            display: inline-block;
+            width: 8px;
+            height: 16px;
+            background-color: var(--text-color);
+            animation: blink 1s infinite;
+            vertical-align: text-bottom;
+        }
+
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+        /* 滚动条样式 */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #000; }
+        ::-webkit-scrollbar-thumb { background: #333; }
+        ::-webkit-scrollbar-thumb:hover { background: #33ff00; }
+    </style>
+</head>
+<body>
+
+    <div id="terminal" onclick="focusInput()">
+        <div id="history"></div>
+        <div class="line" id="input-line" style="display:none;">
+            <span class="prompt">root@anarkh:~#</span><span id="typer"></span><span class="cursor"></span>
+        </div>
+    </div>
+    
+    <input type="text" id="cmd-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+
+    <script>
+        const terminal = document.getElementById('terminal');
+        const historyDiv = document.getElementById('history');
+        const inputLine = document.getElementById('input-line');
+        const typer = document.getElementById('typer');
+        const cmdInput = document.getElementById('cmd-input');
+
+        // 开机动画脚本
+        const bootSequence = [
+            { text: 'Initialising Anarkh Kernel v2.0...', delay: 500 },
+            { text: 'Loading modules: [Java] [Spring] [Neo4j] [Cloudflare]...', delay: 800 },
+            { text: 'Mounting file system: /dev/sda1 -> /home/anarkh', delay: 1200 },
+            { text: 'Checking permissions... Access Granted.', delay: 1500 },
+            { text: '----------------------------------------', delay: 1600 },
+            { text: 'Welcome to ANARKH.QZZ.IO', delay: 1700, style: 'color: #fff; font-weight:bold;' },
+            { text: 'Type "help" to see available commands.', delay: 1800 },
+            { text: '----------------------------------------', delay: 1900 },
+        ];
+
+        // 可用命令配置
+        const commands = {
+            'help': 'Available commands: <br>&nbsp;&nbsp;[about]   - Who am I?<br>&nbsp;&nbsp;[skills]  - Technical Stack<br>&nbsp;&nbsp;[contact] - Get in touch<br>&nbsp;&nbsp;[project] - My recent work<br>&nbsp;&nbsp;[clear]   - Clear terminal<br>&nbsp;&nbsp;[reboot]  - Restart system',
+            'about': 'Hello! I am a <b>Java Development Engineer</b> & System Architect.<br>I specialize in building robust backends and exploring data relationships with Graph Databases.',
+            'skills': '<b>Backend:</b> Java, Spring Boot, MyBatis<br><b>Data:</b> MySQL, Neo4j (Graph DB)<br><b>DevOps:</b> Linux, Docker, Cloudflare<br><b>Tools:</b> Obsidian, VS Code, Mermaid.js',
+            'contact': 'Email:  <a href="mailto:your-email@example.com">your-email@example.com</a><br>GitHub: <a href="https://github.com/yourname" target="_blank">github.com/yourname</a>',
+            'project': 'Recent Project: <b>Career Path Knowledge Graph</b><br>Stack: Neo4j + Spring Boot.<br>Goal: Optimizing query performance for job recruitment data.',
+            'sudo': 'Permission denied: You are not the owner of this universe.',
+            'whoami': 'root',
+            'date': new Date().toString()
+        };
+
+        // 初始化
+        window.onload = function() {
+            runBootSequence();
+        };
+
+        function focusInput() {
+            cmdInput.focus();
+        }
+
+        // 运行开机动画
+        function runBootSequence() {
+            let delay = 0;
+            bootSequence.forEach((line, index) => {
+                setTimeout(() => {
+                    addLine(line.text, line.style);
+                    window.scrollTo(0, document.body.scrollHeight);
+                    
+                    // 动画结束后显示输入行
+                    if (index === bootSequence.length - 1) {
+                        inputLine.style.display = 'block';
+                        focusInput();
+                    }
+                }, line.delay);
+            });
+        }
+
+        // 添加一行文本到历史记录
+        function addLine(text, style = '') {
+            const div = document.createElement('div');
+            div.className = 'line output';
+            if (style) div.style = style;
+            div.innerHTML = text;
+            historyDiv.appendChild(div);
+        }
+
+        // 处理用户输入
+        cmdInput.addEventListener('input', (e) => {
+            typer.innerText = cmdInput.value;
+        });
+
+        // 监听回车键
+        cmdInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const cmd = cmdInput.value.trim().toLowerCase();
+                
+                // 1. 把刚才输入的命令显示在历史记录里
+                const cmdHistory = document.createElement('div');
+                cmdHistory.className = 'line';
+                cmdHistory.innerHTML = `<span class="prompt">root@anarkh:~#</span> <span class="command">${cmdInput.value}</span>`;
+                historyDiv.appendChild(cmdHistory);
+
+                // 2. 处理命令
+                processCommand(cmd);
+
+                // 3. 清空输入框
+                cmdInput.value = '';
+                typer.innerText = '';
+                window.scrollTo(0, document.body.scrollHeight);
+            }
+        });
+
+        function processCommand(cmd) {
+            if (!cmd) return;
+
+            if (cmd === 'clear') {
+                historyDiv.innerHTML = '';
+                return;
+            }
+
+            if (cmd === 'reboot') {
+                location.reload();
+                return;
+            }
+
+            if (commands[cmd]) {
+                addLine(commands[cmd]);
+            } else {
+                addLine(`bash: ${cmd}: command not found. Type "help" for assistance.`, 'color: #ff3333');
+            }
+        }
+    </script>
+</body>
+</html>
